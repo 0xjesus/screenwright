@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.DS_Store
+
+# generated media (don't commit binaries)
+*.mp4
+*.webm
+*.srt
+*.gif
+out/
+output/

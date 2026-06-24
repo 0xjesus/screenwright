@@ -1,0 +1,17 @@
+{
+  "output": "out/capleton-tutorial.mp4",
+  "baseUrl": "https://mrp.chimp.mx",
+  "viewport": { "width": 1440, "height": 900 },
+  "steps": [
+    { "action": "goto", "url": "/login", "caption": "Capleton — Sistema de Gestión de Mantenimiento (CMMS).", "dwellMs": 2600 },
+    { "action": "fill", "selector": "input >> nth=0", "text": "admin@demo.com" },
+    { "action": "fill", "selector": "input[type=password]", "text": "password123" },
+    { "action": "click", "selector": "button:has-text('Iniciar'), button:has-text('Sign In')", "optional": true, "dwellMs": 3000 },
+    { "action": "goto", "url": "/", "caption": "Tablero: MTBF y MTTR como indicadores principales, más gráficas.", "dwellMs": 3600 },
+    { "action": "goto", "url": "/faults", "caption": "Bandeja de Fallas: búsqueda, filtros y orden por criticidad.", "dwellMs": 3600 },
+    { "action": "goto", "url": "/work-orders", "caption": "Órdenes de Trabajo: con buscador de fallas y autollenado.", "dwellMs": 3400 },
+    { "action": "goto", "url": "/material-requests", "caption": "Solicitud de Refacciones técnica, igual a su formato oficial.", "dwellMs": 3600 },
+    { "action": "goto", "url": "/visit-plans", "caption": "Planes de Visita ligados a las órdenes de trabajo.", "dwellMs": 3200 },
+    { "action": "goto", "url": "/settings", "caption": "Configuración con el nuevo diseño. ¡Gracias por ver el recorrido!", "dwellMs": 3400 }
+  ]
+}

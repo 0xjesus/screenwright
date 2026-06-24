@@ -1,0 +1,57 @@
+{
+  "name": "screenwright",
+  "version": "0.1.0",
+  "description": "MCP server that records narrated, subtitled tutorial videos by driving a browser with Playwright — captions burned into the video + an .srt sidecar.",
+  "type": "module",
+  "bin": {
+    "screenwright": "src/index.js"
+  },
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./recorder": "./src/recorder.js"
+  },
+  "files": [
+    "src",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node src/index.js",
+    "postinstall": "playwright install chromium || true",
+    "example": "node scripts/run-example.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ffmpeg-static": "^5.3.0",
+    "playwright": "^1.61.0",
+    "zod": "^3.23.8"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "playwright",
+    "tutorial",
+    "screencast",
+    "screen-recording",
+    "subtitles",
+    "captions",
+    "srt",
+    "demo",
+    "video"
+  ],
+  "author": "0xjesus",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xjesus/screenwright.git"
+  },
+  "homepage": "https://github.com/0xjesus/screenwright#readme",
+  "bugs": {
+    "url": "https://github.com/0xjesus/screenwright/issues"
+  }
+}
