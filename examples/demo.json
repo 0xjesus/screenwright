@@ -3,10 +3,10 @@
   "baseUrl": "https://playwright.dev",
   "viewport": { "width": 1280, "height": 800 },
   "steps": [
-    { "action": "goto", "url": "/", "caption": "Screenwright — graba tutoriales subtitulados con Playwright 🎬", "dwellMs": 2800 },
-    { "action": "scroll", "deltaY": 500, "caption": "Cada paso puede llevar un subtítulo sincronizado…", "dwellMs": 2400 },
-    { "action": "scroll", "deltaY": 500, "caption": "…que queda INCRUSTADO en el video y también en un .srt aparte", "dwellMs": 2800 },
-    { "action": "goto", "url": "/docs/intro", "caption": "Navega, hace clic, escribe… y narra cada acción en pantalla", "dwellMs": 3000 },
-    { "action": "scroll", "deltaY": 600, "caption": "Ideal para demos de producto, onboarding y walkthroughs", "dwellMs": 3000 }
+    { "action": "goto", "url": "/", "caption": "Screenwright — scripted, subtitled tutorial videos with Playwright 🎬", "dwellMs": 2800 },
+    { "action": "scroll", "deltaY": 500, "caption": "Every step can carry a synced subtitle…", "dwellMs": 2400 },
+    { "action": "scroll", "deltaY": 500, "caption": "…burned into the video AND exported as a separate .srt", "dwellMs": 2800 },
+    { "action": "goto", "url": "/docs/intro", "caption": "It navigates, clicks, types… and narrates each action on screen", "dwellMs": 3000 },
+    { "action": "scroll", "deltaY": 600, "caption": "Great for product demos, onboarding and walkthroughs", "dwellMs": 3000 }
   ]
 }
