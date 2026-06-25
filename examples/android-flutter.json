@@ -1,0 +1,12 @@
+{
+  "output": "out/flutter-tutorial.mp4",
+  "size": "720x1280",
+  "captionStyle": { "fontSize": 16, "marginV": 60 },
+  "steps": [
+    { "action": "launch", "package": "com.example.myapp", "caption": "A quick tour of the app 🎬", "dwellMs": 3000 },
+    { "action": "tap", "x": 360, "y": 900, "caption": "Tap the primary button to get started", "dwellMs": 2500 },
+    { "action": "text", "text": "hello world", "caption": "Type into the focused field", "dwellMs": 2200 },
+    { "action": "swipe", "x1": 360, "y1": 1000, "x2": 360, "y2": 400, "durationMs": 400, "caption": "Swipe up to scroll", "dwellMs": 2500 },
+    { "action": "key", "key": "BACK", "caption": "And back home", "dwellMs": 2000 }
+  ]
+}

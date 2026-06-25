@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { recordTutorial } from './recorder.js';
+import { recordAndroidTutorial } from './android.js';
 
 const server = new McpServer({ name: 'screenwright', version: '0.1.0' });
 
@@ -58,6 +59,49 @@ server.registerTool(
 				isError: true,
 				content: [ { type: 'text', text: `❌ ${err.message}` } ],
 			};
+		}
+	},
+);
+
+const androidStepShape = z.object({
+	caption: z.string().optional().describe('Subtitle shown during this step (burned into the video + .srt).'),
+	action: z.enum([ 'tap', 'text', 'swipe', 'key', 'launch', 'wait' ]).describe('What to do on the device.'),
+	x: z.number().optional().describe('tap: x (px).'),
+	y: z.number().optional().describe('tap: y (px).'),
+	x1: z.number().optional(), y1: z.number().optional(),
+	x2: z.number().optional(), y2: z.number().optional(),
+	durationMs: z.number().optional().describe('swipe: duration (ms).'),
+	text: z.string().optional().describe('text: string to type.'),
+	key: z.string().optional().describe('key: BACK | HOME | ENTER | MENU | APP_SWITCH | KEYCODE_*.'),
+	package: z.string().optional().describe('launch: app package id.'),
+	activity: z.string().optional().describe('launch: optional explicit activity.'),
+	dwellMs: z.number().optional().describe('How long to stay after the action (ms).'),
+});
+
+server.registerTool(
+	'record_android_tutorial',
+	{
+		title: 'Record a subtitled tutorial of an Android / Flutter app',
+		description:
+			'Drives a running Android emulator/device with adb (taps, text, swipes, keys, app launch), records the screen, and burns synced captions into the video (+ .srt). Works with any app, including Flutter — no app source needed. Requires the Android platform-tools (adb) and a running emulator or connected device. Coordinates are in device pixels.',
+		inputSchema: {
+			output: z.string().describe('Path to the output .mp4 file.'),
+			steps: z.array(androidStepShape).min(1).describe('Ordered steps. Put a "caption" where the narration should change.'),
+			serial: z.string().optional().describe('adb device serial (-s) when more than one is connected.'),
+			bitRate: z.number().optional().describe('Recording bit rate. Default 8000000.'),
+			size: z.string().optional().describe('Recording size "WxH". Default: device resolution.'),
+			srt: z.string().optional().describe('Custom path for the .srt sidecar.'),
+			burnIn: z.boolean().optional().describe('Burn captions into the video. Default true.'),
+			adbPath: z.string().optional().describe('Path to adb (auto-detected from ANDROID_HOME / ~/Android/Sdk).'),
+			captionStyle: z.object({ fontSize: z.number().optional(), marginV: z.number().optional() }).optional(),
+		},
+	},
+	async (args) => {
+		try {
+			const result = await recordAndroidTutorial(args);
+			return { content: [ { type: 'text', text: `✅ Android tutorial recorded.\n${JSON.stringify(result, null, 2)}` } ] };
+		} catch(err) {
+			return { isError: true, content: [ { type: 'text', text: `❌ ${err.message}` } ] };
 		}
 	},
 );

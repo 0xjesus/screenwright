@@ -1,6 +1,6 @@
 # 🎬 Screenwright
 
-> **Subtitled tutorial videos, scripted.** An [MCP](https://modelcontextprotocol.io) server that turns a list of steps into a narrated screen recording by driving a real browser with [Playwright](https://playwright.dev) — captions **burned into the video** *and* exported as an `.srt`.
+> **Subtitled tutorial videos, scripted.** An [MCP](https://modelcontextprotocol.io) server that turns a list of steps into a narrated screen recording — by driving a real **browser** ([Playwright](https://playwright.dev)) *or* an **Android / Flutter emulator** (`adb`). Captions are **burned into the video** *and* exported as an `.srt`.
 
 The name is a play on **Playwright** (the engine under the hood) + *screen*.
 
@@ -17,6 +17,7 @@ steps[]  ──►  Playwright drives the browser  ──►  caption overlay sy
 - **Synced subtitles** — attach a `caption` to any step; it's burned into the video and written to a timed `.srt`.
 - **Self-contained output** — bundled `ffmpeg` (via `ffmpeg-static`) produces a clean H.264 `.mp4`.
 - **Robust** — per-action timeouts; mark a step `optional` so a missing selector doesn't abort the take.
+- **Web *and* mobile** — Playwright for the web; `adb` screen-record + ffmpeg caption-burn for **Android / Flutter** apps (no app source needed).
 - **Use it from an AI** (MCP tool) **or** straight from Node.
 
 ## 📦 Requirements
@@ -70,6 +71,31 @@ Then just ask your assistant to record a tutorial — it calls the **`record_tut
 
 **Step** = `{ caption?, action, url?, selector?, text?, key?, deltaY?, delayMs?, timeoutMs?, dwellMs?, optional? }`.
 `selector` is any Playwright selector — CSS, `text=…`, `xpath=…`, or `:has-text(…)`.
+
+### Tool: `record_android_tutorial` 📱
+
+Same idea, for a **Flutter / Android app on an emulator or device**. Captions can't be injected into a native app, so the screen is recorded with `adb screenrecord` and the captions are **burned in afterwards** with ffmpeg (libass) from the synced `.srt`.
+
+**Requires:** Android platform-tools (`adb`) + a **running emulator/device** (it must show in `adb devices`). For Flutter: `flutter emulators --launch <id>`, then run your app.
+
+| Field | Notes |
+|---|---|
+| `output` | Output `.mp4`. |
+| `steps` | Ordered steps (below). |
+| `serial` | `adb -s` serial when several devices are connected. |
+| `size` | Recording size `"WxH"` (default: device resolution). |
+| `bitRate` · `srt` · `burnIn` · `adbPath` · `captionStyle` | Optional. |
+
+**Step actions** (coordinates are **device pixels**) — each may carry a `caption` and `dwellMs`:
+
+- `tap` — `{ x, y }`
+- `text` — `{ text }`
+- `swipe` — `{ x1, y1, x2, y2, durationMs? }`
+- `key` — `{ key }` (`BACK`, `HOME`, `ENTER`, `MENU`, `APP_SWITCH`, or a `KEYCODE_*`)
+- `launch` — `{ package, activity? }`
+- `wait` — `{ dwellMs }`
+
+See **`examples/android-flutter.json`**. From Node: `import { recordAndroidTutorial } from 'screenwright/android'`.
 
 ## 🧪 Use from Node (no MCP)
 

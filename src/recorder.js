@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname, resolve, basename, extname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import ffmpegPath from 'ffmpeg-static';
+import { toSrt } from './srt.js';
 
 /**
  * Record a subtitled tutorial video by driving a browser through a list of steps.
@@ -123,15 +124,4 @@ async function runAction(page, step) {
 		case 'wait': break; // dwell handled by step.dwellMs
 		default: throw new Error(`unknown action "${step.action}"`);
 	}
-}
-
-function pad(n, l = 2) { return String(n).padStart(l, '0'); }
-function tsms(ms) {
-	const h = Math.floor(ms / 3600000);
-	const m = Math.floor((ms % 3600000) / 60000);
-	const s = Math.floor((ms % 60000) / 1000);
-	return `${pad(h)}:${pad(m)}:${pad(s)},${pad(Math.floor(ms % 1000), 3)}`;
-}
-function toSrt(cues) {
-	return cues.map((c, i) => `${i + 1}\n${tsms(c.start)} --> ${tsms(Math.max(c.end, c.start + 1200))}\n${c.text}\n`).join('\n');
 }

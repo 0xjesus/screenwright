@@ -9,7 +9,8 @@
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
-    "./recorder": "./src/recorder.js"
+    "./recorder": "./src/recorder.js",
+    "./android": "./src/android.js"
   },
   "files": [
     "src",
