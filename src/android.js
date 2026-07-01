@@ -4,6 +4,7 @@ import { tmpdir, homedir } from 'node:os';
 import { join, dirname, resolve, basename, extname } from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { toSrt } from './srt.js';
+import { resolveTts, synthesizeLine, mixNarration } from './tts.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -41,7 +42,10 @@ export async function recordAndroidTutorial(opts = {}) {
 	const {
 		steps, output, serial, bitRate = 8_000_000, size,
 		srt: srtPath, burnIn = true, captionStyle = {}, adbPath, startupMs = 900,
+		tts,
 	} = opts;
+
+	const ttsCfg = resolveTts(tts);
 
 	if(!Array.isArray(steps) || steps.length === 0) throw new Error('`steps` (non-empty array) is required');
 	if(!output) throw new Error('`output` (path to .mp4) is required');
@@ -61,6 +65,19 @@ export async function recordAndroidTutorial(opts = {}) {
 	const devicePath = '/sdcard/screenwright_rec.mp4';
 	run([ 'shell', 'rm', '-f', devicePath ]);
 
+	// Pre-synthesize narration BEFORE recording, so network latency isn't filmed and
+	// we know each line's duration (to hold the screen while the voice plays).
+	const audioByIndex = new Map();
+	if(ttsCfg) {
+		for(let i = 0; i < steps.length; i++) {
+			const s = steps[i];
+			const line = (s.narration ?? s.caption);
+			if(s.caption !== undefined && line && String(line).trim()) {
+				audioByIndex.set(i, await synthesizeLine(ttsCfg, String(line).trim(), join(tmp, `narr-${i}.mp3`)));
+			}
+		}
+	}
+
 	const srArgs = [ ...pre, 'shell', 'screenrecord', '--bit-rate', String(bitRate), ...(size ? [ '--size', size ] : []), devicePath ];
 	const rec = spawn(adb, srArgs, { stdio: 'ignore' });
 	await sleep(startupMs); // let screenrecord warm up before t0
@@ -75,10 +92,16 @@ export async function recordAndroidTutorial(opts = {}) {
 	};
 
 	try {
-		for(const step of steps) {
+		for(let i = 0; i < steps.length; i++) {
+			const step = steps[i];
 			if(step.caption !== undefined) setCaption(step.caption);
+			const audio = audioByIndex.get(i);
+			if(audio && openCue) openCue.audioFile = audio.file; // carried into the cue for mixing
 			runAndroidAction(run, step);
-			if(step.dwellMs) await sleep(step.dwellMs);
+			// Hold the screen at least as long as this line's narration (+ tail), so the
+			// voice-over finishes before the next caption/line begins.
+			const dwell = Math.max(step.dwellMs || 0, audio ? audio.durationMs + ttsCfg.tailPadMs : 0);
+			if(dwell) await sleep(dwell);
 		}
 	} finally {
 		if(openCue) { openCue.end = now(); cues.push(openCue); }
@@ -97,11 +120,22 @@ export async function recordAndroidTutorial(opts = {}) {
 	const srtAbs = srtPath ? resolve(srtPath) : join(dirname(outAbs), `${basename(outAbs, extname(outAbs))}.captions.srt`);
 	writeFileSync(srtAbs, toSrt(cues));
 
+	// Mix the narration clips (each delayed to its caption's start) into one track.
+	const clips = cues.filter((c) => c.audioFile).map((c) => ({ file: c.audioFile, startMs: c.start }));
+	const narrationWav = (ttsCfg && clips.length) ? mixNarration(clips, join(tmp, 'narration.wav')) : null;
+
 	const vf = burnIn && cues.length ? [ '-vf', `subtitles=${srtAbs}:force_style=${assStyle(captionStyle)}` ] : [];
-	const conv = spawnSync(ffmpegPath, [ '-y', '-i', localRaw, ...vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', outAbs ], { stdio: 'ignore' });
+	const ffArgs = narrationWav
+		? [ '-y', '-i', localRaw, '-i', narrationWav, ...vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', outAbs ]
+		: [ '-y', '-i', localRaw, ...vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', outAbs ];
+	const conv = spawnSync(ffmpegPath, ffArgs, { stdio: 'ignore' });
 	if(conv.status !== 0) throw new Error('ffmpeg conversion/caption-burn failed');
 
-	return { mp4: outAbs, srt: srtAbs, durationMs: now(), steps: steps.length, captions: cues.length, device: (state.stdout || '').trim() };
+	return {
+		mp4: outAbs, srt: srtAbs, durationMs: now(), steps: steps.length, captions: cues.length,
+		device: (state.stdout || '').trim(),
+		narration: narrationWav ? { provider: ttsCfg.provider, lines: clips.length } : null,
+	};
 }
 
 function runAndroidAction(run, step) {

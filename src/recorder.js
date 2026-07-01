@@ -5,6 +5,7 @@ import { join, dirname, resolve, basename, extname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import ffmpegPath from 'ffmpeg-static';
 import { toSrt } from './srt.js';
+import { resolveTts, synthesizeLine, mixNarration } from './tts.js';
 
 /**
  * Record a subtitled tutorial video by driving a browser through a list of steps.
@@ -28,15 +29,28 @@ export async function recordTutorial(opts = {}) {
 		steps, output, baseUrl,
 		viewport = { width: 1440, height: 900 },
 		headless = true, channel,
-		burnIn = true, srt: srtPath, captionStyle = {},
+		burnIn = true, srt: srtPath, captionStyle = {}, tts,
 	} = opts;
 
 	if(!Array.isArray(steps) || steps.length === 0) throw new Error('`steps` (non-empty array) is required');
 	if(!output) throw new Error('`output` (path to .mp4) is required');
 
+	const ttsCfg = resolveTts(tts);
 	const outAbs = resolve(output);
 	mkdirSync(dirname(outAbs), { recursive: true });
 	const tmpDir = mkdtempSync(join(tmpdir(), 'screenwright-'));
+
+	// Pre-synthesize narration before recording so we know each line's duration.
+	const audioByIndex = new Map();
+	if(ttsCfg) {
+		for(let i = 0; i < steps.length; i++) {
+			const s = steps[i];
+			const line = (s.narration ?? s.caption);
+			if(s.caption !== undefined && line && String(line).trim()) {
+				audioByIndex.set(i, await synthesizeLine(ttsCfg, String(line).trim(), join(tmpDir, `narr-${i}.mp3`)));
+			}
+		}
+	}
 
 	const browser = await chromium.launch({ headless, channel });
 	const context = await browser.newContext({
@@ -79,14 +93,18 @@ export async function recordTutorial(opts = {}) {
 		if(text) openCue = { start: now(), text };
 	};
 
-	for(const step of steps) {
+	for(let i = 0; i < steps.length; i++) {
+		const step = steps[i];
 		if(step.caption !== undefined) await setCaption(step.caption);
+		const audio = audioByIndex.get(i);
+		if(audio && openCue) openCue.audioFile = audio.file;
 		try {
 			await runAction(page, step);
 		} catch(err) {
 			if(!step.optional) { await context.close().catch(() => {}); await browser.close().catch(() => {}); throw new Error(`step "${step.action}" failed: ${err.message}`); }
 		}
-		if(step.dwellMs) await page.waitForTimeout(step.dwellMs);
+		const dwell = Math.max(step.dwellMs || 0, audio ? audio.durationMs + ttsCfg.tailPadMs : 0);
+		if(dwell) await page.waitForTimeout(dwell);
 	}
 	if(openCue) { openCue.end = now(); cues.push(openCue); }
 	const durationMs = now();
@@ -97,7 +115,14 @@ export async function recordTutorial(opts = {}) {
 	const webm = readdirSync(tmpDir).filter((f) => f.endsWith('.webm')).map((f) => join(tmpDir, f))[0];
 	if(!webm) throw new Error('no video was recorded');
 
-	const conv = spawnSync(ffmpegPath, [ '-y', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', outAbs ], { stdio: 'ignore' });
+	// Captions are already burned as a page overlay; here we only add the voice-over.
+	const clips = cues.filter((c) => c.audioFile).map((c) => ({ file: c.audioFile, startMs: c.start }));
+	const narrationWav = (ttsCfg && clips.length) ? mixNarration(clips, join(tmpDir, 'narration.wav')) : null;
+
+	const convArgs = narrationWav
+		? [ '-y', '-i', webm, '-i', narrationWav, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', outAbs ]
+		: [ '-y', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', outAbs ];
+	const conv = spawnSync(ffmpegPath, convArgs, { stdio: 'ignore' });
 	if(conv.status !== 0) throw new Error('ffmpeg conversion to mp4 failed');
 
 	const srtAbs = srtPath
@@ -105,7 +130,7 @@ export async function recordTutorial(opts = {}) {
 		: join(dirname(outAbs), `${basename(outAbs, extname(outAbs))}.captions.srt`);
 	writeFileSync(srtAbs, toSrt(cues));
 
-	return { mp4: outAbs, srt: srtAbs, durationMs, steps: steps.length, captions: cues.length };
+	return { mp4: outAbs, srt: srtAbs, durationMs, steps: steps.length, captions: cues.length, narration: narrationWav ? { provider: ttsCfg.provider, lines: clips.length } : null };
 }
 
 async function runAction(page, step) {

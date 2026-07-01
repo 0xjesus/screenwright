@@ -15,6 +15,7 @@ steps[]  ──►  Playwright drives the browser  ──►  caption overlay sy
 
 - **Scripted walkthroughs** — `goto`, `click`, `fill`, `type`, `press`, `hover`, `scroll`, `wait`.
 - **Synced subtitles** — attach a `caption` to any step; it's burned into the video and written to a timed `.srt`.
+- **Real voice-over (optional)** — turn captions into a spoken narration with **ElevenLabs** or **OpenAI** TTS. Each line is pre-synthesized and the screen is held while it plays, so audio stays perfectly synced to the subtitles. Configure once via env.
 - **Self-contained output** — bundled `ffmpeg` (via `ffmpeg-static`) produces a clean H.264 `.mp4`.
 - **Robust** — per-action timeouts; mark a step `optional` so a missing selector doesn't abort the take.
 - **Web *and* mobile** — Playwright for the web; `adb` screen-record + ffmpeg caption-burn for **Android / Flutter** apps (no app source needed).
@@ -67,9 +68,10 @@ Then just ask your assistant to record a tutorial — it calls the **`record_tut
 | `channel` | string? | e.g. `"chrome"` to use the system browser. |
 | `burnIn` | bool? | Burn captions into the video. Default `true`. |
 | `srt` | string? | Custom `.srt` path. Default `<output>.captions.srt`. |
+| `tts` | object? | Voice-over — see [🎙️ Voice-over](#️-voice-over-tts). |
 | `captionStyle` | object? | `{ position, fontSize, bg, color, maxWidth }`. |
 
-**Step** = `{ caption?, action, url?, selector?, text?, key?, deltaY?, delayMs?, timeoutMs?, dwellMs?, optional? }`.
+**Step** = `{ caption?, narration?, action, url?, selector?, text?, key?, deltaY?, delayMs?, timeoutMs?, dwellMs?, optional? }`.
 `selector` is any Playwright selector — CSS, `text=…`, `xpath=…`, or `:has-text(…)`.
 
 ### Tool: `record_android_tutorial` 📱
@@ -85,6 +87,7 @@ Same idea, for a **Flutter / Android app on an emulator or device**. Captions ca
 | `serial` | `adb -s` serial when several devices are connected. |
 | `size` | Recording size `"WxH"` (default: device resolution). |
 | `bitRate` · `srt` · `burnIn` · `adbPath` · `captionStyle` | Optional. |
+| `tts` | Voice-over — see [🎙️ Voice-over](#️-voice-over-tts). |
 
 **Step actions** (coordinates are **device pixels**) — each may carry a `caption` and `dwellMs`:
 
@@ -96,6 +99,49 @@ Same idea, for a **Flutter / Android app on an emulator or device**. Captions ca
 - `wait` — `{ dwellMs }`
 
 See **`examples/android-flutter.json`**. From Node: `import { recordAndroidTutorial } from 'screenwright/android'`.
+
+## 🎙️ Voice-over (TTS)
+
+Turn your captions into a **real spoken narration** — same tool, both drivers (web + Android). Provider and voice are set **once via env** (the same MCP config), so any `record_*` call with captions gets narrated automatically. Each line is synthesized *before* recording and the screen is held while it plays → the voice stays locked to the burned-in subtitles.
+
+Configure in your MCP server env (or shell):
+
+```json
+{
+  "mcpServers": {
+    "screenwright": {
+      "command": "node",
+      "args": ["/absolute/path/to/screenwright/src/index.js"],
+      "env": {
+        "SCREENWRIGHT_TTS_PROVIDER": "elevenlabs",
+        "ELEVENLABS_API_KEY": "sk_...",
+        "ELEVENLABS_VOICE_ID": "21m00Tcm4TlvDq8ikWAM",
+        "ELEVENLABS_MODEL": "eleven_multilingual_v2"
+      }
+    }
+  }
+}
+```
+
+**OpenAI** instead: `SCREENWRIGHT_TTS_PROVIDER=openai`, `OPENAI_API_KEY=...`, `OPENAI_TTS_VOICE=onyx`, `OPENAI_TTS_MODEL=gpt-4o-mini-tts`.
+
+Per-call override (wins over env), plus a `narration` field when the spoken line should differ from the on-screen caption:
+
+```js
+await recordAndroidTutorial({
+  output: 'out/tour.mp4',
+  tts: { provider: 'elevenlabs', voiceId: '…', speed: 1.0, stability: 0.5 },
+  steps: [
+    { action: 'launch', package: 'com.acme.app', caption: 'Meet Acme', narration: 'This is Acme — your market copilot.', dwellMs: 1500 },
+    { action: 'tap', x: 540, y: 1925, caption: 'Generate a signal', dwellMs: 1000 },
+  ],
+});
+// → { mp4, srt, durationMs, steps, captions, narration: { provider, lines } }
+```
+
+- **`tts` fields:** `provider` (`elevenlabs`|`openai`), `apiKey?`, `voiceId?`/`voice?`, `model?`, `speed?`, `stability?`, `similarityBoost?`, `style?`, `tailPadMs?` (silence after each line, default 450).
+- Requires the bundled `ffmpeg` (already a dependency) to mix + mux the audio. Multilingual voices (e.g. `eleven_multilingual_v2`) narrate Spanish/English captions cleanly.
+- No `tts` and no env provider → silent captions, exactly as before.
 
 ## 🧪 Use from Node (no MCP)
 

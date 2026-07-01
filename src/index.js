@@ -7,8 +7,26 @@ import { recordAndroidTutorial } from './android.js';
 
 const server = new McpServer({ name: 'screenwright', version: '0.1.0' });
 
+// Optional voice-over. Configure once via the MCP env (SCREENWRIGHT_TTS_PROVIDER +
+// ELEVENLABS_API_KEY/VOICE_ID/MODEL or OPENAI_API_KEY/TTS_VOICE/TTS_MODEL); pass this
+// object to override per call. When set, each caption is spoken (real voice) and the
+// screen is held while the line plays, so audio stays synced to the burned-in subs.
+const ttsShape = z.object({
+	provider: z.enum([ 'elevenlabs', 'openai' ]).describe('TTS provider.'),
+	apiKey: z.string().optional().describe('Override the env API key.'),
+	voiceId: z.string().optional().describe('ElevenLabs voice id.'),
+	voice: z.string().optional().describe('OpenAI voice (e.g. onyx, nova, alloy).'),
+	model: z.string().optional().describe('Provider model (e.g. eleven_multilingual_v2, gpt-4o-mini-tts).'),
+	speed: z.number().optional().describe('Speaking rate (1 = normal).'),
+	stability: z.number().optional().describe('ElevenLabs stability 0–1.'),
+	similarityBoost: z.number().optional().describe('ElevenLabs similarity boost 0–1.'),
+	style: z.number().optional().describe('ElevenLabs style 0–1.'),
+	tailPadMs: z.number().optional().describe('Silence held after each line (ms). Default 450.'),
+}).describe('Optional voice-over (ElevenLabs or OpenAI). Speaks each caption; omit to keep silent captions.');
+
 const stepShape = z.object({
 	caption: z.string().optional().describe('Subtitle to show during this step (stays until the next caption). Burned into the video + written to the .srt.'),
+	narration: z.string().optional().describe('Spoken line for TTS when it should differ from the on-screen caption. Defaults to the caption text.'),
 	action: z.enum([ 'goto', 'click', 'fill', 'type', 'press', 'hover', 'scroll', 'wait' ]).describe('What to do.'),
 	url: z.string().optional().describe('For "goto": URL or path (relative to baseUrl).'),
 	selector: z.string().optional().describe('For click/fill/type/hover: a Playwright selector — CSS, "text=…", "xpath=…", or ":has-text(…)".'),
@@ -36,6 +54,7 @@ server.registerTool(
 			channel: z.string().optional().describe('Browser channel, e.g. "chrome", to use the system browser instead of bundled Chromium.'),
 			burnIn: z.boolean().optional().describe('Burn captions into the video. Default true. If false, only the .srt is produced (clean video).'),
 			srt: z.string().optional().describe('Custom path for the .srt sidecar. Default: <output>.captions.srt (a non-matching name so players do not double it on top of the burned-in subs).'),
+			tts: ttsShape.optional(),
 			captionStyle: z
 				.object({
 					position: z.enum([ 'bottom', 'top' ]).optional(),
@@ -65,6 +84,7 @@ server.registerTool(
 
 const androidStepShape = z.object({
 	caption: z.string().optional().describe('Subtitle shown during this step (burned into the video + .srt).'),
+	narration: z.string().optional().describe('Spoken line for TTS when it should differ from the on-screen caption. Defaults to the caption text.'),
 	action: z.enum([ 'tap', 'text', 'swipe', 'key', 'launch', 'wait' ]).describe('What to do on the device.'),
 	x: z.number().optional().describe('tap: x (px).'),
 	y: z.number().optional().describe('tap: y (px).'),
@@ -93,6 +113,7 @@ server.registerTool(
 			srt: z.string().optional().describe('Custom path for the .srt sidecar.'),
 			burnIn: z.boolean().optional().describe('Burn captions into the video. Default true.'),
 			adbPath: z.string().optional().describe('Path to adb (auto-detected from ANDROID_HOME / ~/Android/Sdk).'),
+			tts: ttsShape.optional(),
 			captionStyle: z.object({ fontSize: z.number().optional(), marginV: z.number().optional() }).optional(),
 		},
 	},
